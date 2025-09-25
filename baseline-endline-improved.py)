@@ -1,0 +1,50 @@
+import pandas as pd
+from rapidfuzz.fuzz import token_set_ratio, partial_ratio
+
+def normalize(name):
+    """Lowercase and remove extra spaces from a name."""
+    return ' '.join(str(name).lower().strip().split())
+
+# === CONFIGURATION ===
+INPUT_FILE = "Name matching 2.csv"  # Your file name
+NAME_COLUMN = "Full Name"
+TIMEPOINT_COLUMN = "Timepoint"
+BASELINE_LABEL = "Baseline"
+ENDLINE_LABEL = "Endline"
+THRESHOLD = 85
+
+# === LOAD DATA ===
+df = pd.read_csv(INPUT_FILE)
+
+# === GET BASELINE AND ENDLINE NAMES ===
+baseline_names = df[df[TIMEPOINT_COLUMN] == BASELINE_LABEL][NAME_COLUMN].dropna().unique()
+endline_names = df[df[TIMEPOINT_COLUMN] == ENDLINE_LABEL][NAME_COLUMN].dropna().unique()
+
+# === MATCHING LOGIC ===
+results = []
+for base in baseline_names:
+    norm_base = normalize(base)
+    best_match = None
+    best_score = 0
+    for end in endline_names:
+        norm_end = normalize(end)
+        score = max(
+            token_set_ratio(norm_base, norm_end),
+            partial_ratio(norm_base, norm_end)
+        )
+        if score > best_score:
+            best_score = score
+            best_match = end
+    match_status = "MATCH" if best_score >= THRESHOLD else "NO MATCH"
+    results.append({
+        "Baseline Name": base,
+        "Best Endline Match": best_match if best_score >= THRESHOLD else "",
+        "Score": best_score,
+        "Status": match_status
+    })
+
+# === OUTPUT RESULTS ===
+output_df = pd.DataFrame(results)
+output_file = INPUT_FILE.replace(".csv", " with matches.xlsx")
+output_df.to_excel(output_file, index=False)
+print(f"Matching complete. Results saved to {output_file}")
